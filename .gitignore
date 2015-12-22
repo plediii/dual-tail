@@ -1,0 +1,6 @@
+Trash/
+trash/
+node_modules/
+*~
+\#*
+coverage/

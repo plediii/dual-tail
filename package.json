@@ -1,0 +1,30 @@
+{
+  "name": "dual-tail",
+  "version": "0.0.0",
+  "main": "index.js",
+  "scripts": {
+    "lint": "jshint *.js lib test",
+    "test": "node test",
+    "coverage": "istanbul cover test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/plediii/dual-tail.git"
+  },
+  "author": "Paul J. Ledbetter III",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/plediii/dual-tail/issues"
+  },
+  "homepage": "https://github.com/plediii/dual-tail#readme",
+  "pre-commit": [
+    "lint"
+  ],
+  "description": "Transmit a file tail to a dual-api host",
+  "devDependencies": {
+    "istanbul": "^0.4.1",
+    "jshint": "^2.8.0",
+    "pre-commit": "^1.1.2",
+    "tape": "^4.2.2"
+  }
+}
