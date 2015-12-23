@@ -8,21 +8,24 @@ var fs = Promise.promisifyAll(require('fs'));
 var dualapi = require('dualapi').use(require('..'));
 
 var testTailFilename = pathlib.join(__dirname, '/data/testTail');
-var testAppendFilename = pathlib.join(__dirname, '/data/testTailAppend');
 var testTailFileContent = fs.readFileSync(pathlib.join(__dirname, '/data/testTail')).toString();
 
 
 test('dual-tail', function (t) {
 
     var testContext = function () {
-        fs.writeFileSync(testAppendFilename, fs.readFileSync(testTailFilename));
-        var additionalContent = '\nand now a third';
-        var finalContent = testTailFileContent + additionalContent;
         var d = dualapi();
-        return d.uid()
-            .then(function (newFileId) {
-                return [d, additionalContent, finalContent, pathlib.join(__dirname, '/data/new' + newFileId)];
-            });
+        return Promise.join(d.uid(), d.uid(), function (newFileId, appendFileId) {
+            var testAppendFilename = pathlib.join(__dirname, '/data/append' + newFileId);
+            fs.writeFileSync(testAppendFilename, fs.readFileSync(testTailFilename));
+            var additionalContent = '\nand now a third';
+            var finalContent = testTailFileContent + additionalContent;
+            return [d
+                    , additionalContent
+                    , finalContent
+                    , pathlib.join(__dirname, '/data/new' + newFileId)
+                    , testAppendFilename];
+        });
     };
 
     t.test('transmits data to destination', function (s) {
@@ -54,7 +57,7 @@ test('dual-tail', function (t) {
     t.test('transmits additional content modifications', function (s) {
         s.plan(1);
         testContext()
-        .spread(function (d, additionalContent, finalContent) {
+        .spread(function (d, additionalContent, finalContent, testNewFilename, testAppendFilename) {
             var buffer = '';
             d.mount(['receiver'], function (body, ctxt) {
                 buffer += body;
@@ -65,6 +68,26 @@ test('dual-tail', function (t) {
             d.tail(testAppendFilename, ['receiver']);
             setTimeout(function () {
                 fs.appendFileSync(testAppendFilename, additionalContent);
+            }, 2);
+        });
+    });
+
+    t.test('transmits additional content modifications after file truncation', function (s) {
+        s.plan(1);
+        testContext()
+        .spread(function (d, additionalContent, finalContent, testNewFilename, testAppendFilename) {
+            var buffer = '';
+            d.mount(['receiver'], function (body, ctxt) {
+                buffer += body;
+                if (buffer === finalContent) {
+                    s.pass('Received updated content');
+                }
+            });
+            d.tail(testAppendFilename, ['receiver']);
+            setTimeout(function () {
+                fs.unlinkSync(testAppendFilename);
+                console.log('writing on truncated: ', additionalContent);
+                fs.writeFileSync(testAppendFilename, additionalContent);
             }, 2);
         });
     });
@@ -103,7 +126,7 @@ test('dual-tail', function (t) {
     t.test('terminates tail on response', function (s) {
         s.plan(1);
         testContext()
-        .spread(function (d, additionalContent, finalContent) {
+        .spread(function (d, additionalContent, finalContent, testNewFilename, testAppendFilename) {
             var bufferEvery = '';
             var bufferReceiver = '';
             var bufferLast = '';

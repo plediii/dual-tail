@@ -9,6 +9,7 @@ module.exports = function (Domain) {
             .then(function (mailbox) {
                 var source = [mailbox];
                 var bufCount = 0;
+                var birthTime = null;
                 var stream;
                 var startStream = function () {
                     if (stream) {
@@ -28,19 +29,44 @@ module.exports = function (Domain) {
                         stream = null;
                     });
                     stream.on('end', function () {
-                        stream.close();
+                        if (stream) {
+                            stream.close();
+                        }
                         stream = null;
                     });
                 };
-                var watchListener = function () {
+                var watchListener = function (event, filename) {
+                    if (event === 'rename') {
+                        bufCount = 0;
+                    }
                     startStream();
                 };
-                fs.watchFile(filename, watchListener);
-                startStream();
+                var watcher = null;
+                var startWatch = function () {
+                    try {
+                        watcher = fs.watch(filename, watchListener);
+                    } catch (err) {
+                        watcher = null;
+                        if (err.code === 'ENOENT') {
+                            setTimeout(startWatch, 1);
+                        } else {
+                            console.error('dual-tail error: ', err, err.stack);
+                        }
+                        return;
+                    }
+                    startStream();
+                };
+                startWatch();
                 d.waitFor(source)
                     .then(function () {
-                        fs.unwatchFile(filename, watchListener);
-                        stream.close();
+                        if (watcher) {
+                            watcher.close();
+                            watcher = null;
+                        }
+                        if (stream) {
+                            stream.close();
+                            stream = null;
+                        }
                     });
             });
     }
