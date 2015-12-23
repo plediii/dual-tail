@@ -9,7 +9,6 @@ var dualapi = require('dualapi').use(require('..'));
 
 var testTailFilename = pathlib.join(__dirname, '/data/testTail');
 var testAppendFilename = pathlib.join(__dirname, '/data/testTailAppend');
-var testNewFilename = pathlib.join(__dirname, '/data/testNewFile');
 var testTailFileContent = fs.readFileSync(pathlib.join(__dirname, '/data/testTail')).toString();
 
 
@@ -19,15 +18,11 @@ test('dual-tail', function (t) {
         fs.writeFileSync(testAppendFilename, fs.readFileSync(testTailFilename));
         var additionalContent = '\nand now a third';
         var finalContent = testTailFileContent + additionalContent;
-        return fs.unlinkAsync(testNewFilename)
-            .catch(function (err) {
-                if (err.code !== 'ENOENT') {
-                    throw err;
-                }
-            })
-                .then(function () {
-                    return [dualapi(), additionalContent, finalContent];
-                });
+        var d = dualapi();
+        return d.uid()
+            .then(function (newFileId) {
+                return [d, additionalContent, finalContent, pathlib.join(__dirname, '/data/new' + newFileId)];
+            });
     };
 
     t.test('transmits data to destination', function (s) {
@@ -70,14 +65,14 @@ test('dual-tail', function (t) {
             d.tail(testAppendFilename, ['receiver']);
             setTimeout(function () {
                 fs.appendFileSync(testAppendFilename, additionalContent);
-            }, 25);
+            }, 2);
         });
     });
 
     t.test('transmits additional content modifications for newly created file', function (s) {
         s.plan(1);
         testContext()
-        .spread(function (d, additionalContent, finalContent) {
+        .spread(function (d, additionalContent, finalContent, testNewFilename) {
             var buffer = '';
             d.mount(['receiver'], function (body, ctxt) {
                 buffer += body;
@@ -85,10 +80,10 @@ test('dual-tail', function (t) {
                     s.pass('Received updated content');
                 }
             });
-            d.tail(testAppendFilename, ['receiver']);
+            d.tail(testNewFilename, ['receiver']);
             setTimeout(function () {
-                fs.writeFileSync(testNewFilename)
-            }, 25);
+                fs.writeFileSync(testNewFilename, finalContent);
+            }, 2);
         });
     });
 
@@ -117,7 +112,7 @@ test('dual-tail', function (t) {
                 if (bufferEvery === finalContent) {
                     s.fail('Received entire content on every host');
                 }
-                ctxt.reply('Stop');
+                ctxt.return('Stop');
             });
             d.mount(['receiver'], function (body, ctxt) {
                 bufferReceiver += body;
@@ -127,17 +122,22 @@ test('dual-tail', function (t) {
             });
             d.mount(['last'], function (body, ctxt) {
                 bufferLast += body;
-                if (bufferEvery === testTailFileContent) {
+                if (bufferEvery === finalContent) {
                     s.fail('Received entire content on last host');
                 }
-                ctxt.reply('Stop');
+                ctxt.return('Stop');
             });
             d.tail(testAppendFilename, ['every']);
             d.tail(testAppendFilename, ['receiver']);
             d.tail(testAppendFilename, ['last']);
             setTimeout(function () {
                 fs.appendFileSync(testAppendFilename, additionalContent);
-            }, 25);
+            }, 5);
         });
     });
+
+    setTimeout(function () {
+        console.log('successful terminate');
+        process.exit(0); // temrinate hanging tails
+    }, 30000);
 });
