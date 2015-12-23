@@ -22,6 +22,8 @@
   ],
   "description": "Transmit a file tail to a dual-api host",
   "devDependencies": {
+    "bluebird": "^3.1.1",
+    "dualapi": "^1.3.1",
     "istanbul": "^0.4.1",
     "jshint": "^2.8.0",
     "pre-commit": "^1.1.2",
